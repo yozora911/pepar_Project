@@ -28,6 +28,8 @@ public:
 	//ƒXƒP[ƒ‹Žæ“¾
 	void SetScale(const DirectX::XMFLOAT3& scale) { this->scale = scale; }
 
+	const DirectX::XMFLOAT4X4& GetTransform() const { return transform; }
+
 protected:
 	DirectX::XMFLOAT3 position = { 0,0,0 };
 	DirectX::XMFLOAT3 angle = { 0,0,0 };

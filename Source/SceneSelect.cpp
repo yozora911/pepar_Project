@@ -1,31 +1,52 @@
-#include "SceneSelect.h"
+ï»¿#include "SceneSelect.h"
 #include "System/Graphics.h"
 #include "System/Input.h"
+#include "Camera.h"
 #include "SceneManager.h"
 #include "SceneGame.h"
+#include "Collision.h"
 
-//‰Šú‰»
+//åˆæœŸåŒ–
 void SceneSelect::Initialize()
 {
-	//ƒXƒvƒ‰ƒCƒg‰Šú‰»
+	//ã‚¹ãƒ—ãƒ©ã‚¤ãƒˆåˆæœŸåŒ–
 	select = new Sprite("Data/Sprite/Select_2.jpg");
 	right = new Sprite(("Data/Sprite/rigth.jpg"));
-	stage1 = new Sprite(("Data/Sprite/stage1.jpg"));
-	stage2 = new Sprite(("Data/Sprite/stage2.jpg"));
 
-	// ƒXƒe[ƒWˆÊ’u‚Ì‰Šú‰»
-	stage1PosX = 384.0f;
-	stage2PosX = 1280.0f;  // ‰æ–ÊŠO‰E‘¤‚É”z’u
-	nowStageIndex = 0;
-	isMoving = false;
-	moveDirection = 0;
-	transitionSpeed = 800.0f;
+	//ã‚¹ãƒ†ãƒ¼ã‚¸åˆæœŸåŒ–
+	stage = new Stage_model();
+	stage->SetPosition(DirectX::XMFLOAT3(0.0f, 0.0f, -0.0f));
+
+	//ã‚«ãƒ¡ãƒ©åˆæœŸè¨­å®š
+	Graphics& graphics = Graphics::Instance();
+	Camera& camera = Camera::Instance();
+	camera.SetLookAt(
+		DirectX::XMFLOAT3(0, 10, -10), //è¦–ç‚¹
+		DirectX::XMFLOAT3(0, 0, 0), //æ³¨è¦–ç‚¹
+		DirectX::XMFLOAT3(0, 1, 0) //ä¸Šæ–¹å‘
+	);
+	camera.SetPerspectiveFov(
+		DirectX::XMConvertToRadians(45), //è¦–é‡è§’
+		graphics.GetScreenWidth() / graphics.GetScreenHeight(), //ç”»é¢ã‚¢ã‚¹ãƒšã‚¯ãƒˆæ¯”
+		0.1, //ã‚¯ãƒªãƒƒãƒ—è·é›¢ï¼ˆè¿‘ï¼‰
+		1000.0f //ã‚¯ãƒªãƒƒãƒ—è·é›¢ï¼ˆé ï¼‰
+	);
+
+	//ã‚«ãƒ¡ãƒ©ã‚³ãƒ³ãƒˆãƒ­ãƒ¼ãƒ©ãƒ¼åˆæœŸåŒ–
+	cameraController = new CameraController();
 }
 
-//I—¹‰»
+//çµ‚äº†åŒ–
 void SceneSelect::Finalize()
 {
-	//ƒXƒvƒ‰ƒCƒgI—¹‰»
+	//ã‚«ãƒ¡ãƒ©ã‚³ãƒ³ãƒˆãƒ­ãƒ¼ãƒ©ãƒ¼çµ‚äº†åŒ–
+	if (cameraController != nullptr)
+	{
+		delete cameraController;
+		cameraController = nullptr;
+	}
+
+	//ã‚¹ãƒ—ãƒ©ã‚¤ãƒˆçµ‚äº†åŒ–
 	if (select != nullptr)
 	{
 		delete select;
@@ -36,144 +57,103 @@ void SceneSelect::Finalize()
 		delete right;
 		right = nullptr;
 	}
-	if (stage1 != nullptr)
+
+	//ã‚¹ãƒ†ãƒ¼ã‚¸çµ‚äº†åŒ–
+	if (stage != nullptr)
 	{
-		delete stage1;
-		stage1 = nullptr;
-	}
-	if (stage2 != nullptr)
-	{
-		delete stage2;
-		stage2 = nullptr;
+		delete stage;
+		stage = nullptr;
 	}
 }
 
-//XVˆ—
+//æ›´æ–°å‡¦ç†
 void SceneSelect::Update(float elapsedTime)
 {
+	// ã‚«ãƒ¡ãƒ©ã‚³ãƒ³ãƒˆãƒ­ãƒ¼ãƒ©ãƒ¼æ›´æ–°å‡¦ç†
+	DirectX::XMFLOAT3 target = stage->GetPosition();
+	target.y += 0.5f;
+	cameraController->SetTarget(target);
+	cameraController->Update(elapsedTime);
+
+
+	// ãƒã‚¦ã‚¹å·¦ã‚¯ãƒªãƒƒã‚¯ã—ãŸ
+	if (GetAsyncKeyState(VK_LBUTTON) & 0x8000)
+	{
+		// ã‚¹ã‚¯ãƒªãƒ¼ãƒ³ã‚µã‚¤ã‚ºå–å¾—
+		float screenWidth = Graphics::Instance().GetScreenWidth();
+		float screenHeight = Graphics::Instance().GetScreenHeight();
+
+		//ãƒã‚¦ã‚¹ã‚«ãƒ¼ã‚½ãƒ«ä½ç½®ã®å–å¾—
+		POINT cursor;
+		::GetCursorPos(&cursor);
+		::ScreenToClient(Graphics::Instance().GetWindowHandle(), &cursor);
+
+		Camera& camera = Camera::Instance();
+		//å„è¡Œåˆ—ã‚’å–å¾—
+		DirectX::XMMATRIX View = DirectX::XMLoadFloat4x4(&camera.GetView());
+		DirectX::XMMATRIX Projection = DirectX::XMLoadFloat4x4(&camera.GetProjection());
+		DirectX::XMMATRIX World = DirectX::XMMatrixIdentity();
+
+		//ã‚¹ã‚¯ãƒªãƒ¼ãƒ³åº§æ¨™ã®è¨­å®š
+		DirectX::XMVECTOR ScreenPosition, WorldPosition;
+		DirectX::XMFLOAT3 screenPosition = { 0.0f, 0.0f, 0.0f };
+		screenPosition.x = static_cast<float>(cursor.x);
+		screenPosition.y = static_cast<float>(cursor.y);
+
+		//ã‚¹ã‚¯ãƒªãƒ¼ãƒ³åº§æ¨™ã‚’ãƒ¯ãƒ¼ãƒ«ãƒ‰åº§æ¨™ã«å¤‰æ›ã—ã€ãƒ¬ã‚¤ã®å§‹ç‚¹ã‚’æ±‚ã‚ã‚‹
+		//ãƒ“ãƒ¥ãƒ¼ãƒãƒ¼ãƒˆ
+		float viewportX = 0.0f;
+		float viewportY = 0.0f;
+		float viewportW = screenWidth;
+		float viewportH = screenHeight;
+		float viewportMinZ = 0.0f;
+		float viewportMaxZ = 1.0f;
+
+		//ã‚¹ã‚¯ãƒªãƒ¼ãƒ³åº§æ¨™ã‹ã‚‰NDCåº§æ¨™ã¸å¤‰æ›
+		screenPosition.z = 0.0f;
+		DirectX::XMVECTOR NDCPosition = DirectX::XMVectorSet(
+			2.0f * (screenPosition.x - viewportX) / viewportW - 1.0f,
+			1.0f - 2.0f * (screenPosition.y - viewportY) / viewportH,
+			(screenPosition.z - viewportMinZ) / (viewportMaxZ - viewportMinZ),
+			1.0f
+		);
+
+
+		//NDCåº§æ¨™ã‹ã‚‰ãƒ¯ãƒ¼ãƒ«ãƒ‰åº§æ¨™ã¸å¤‰æ›
+		DirectX::XMMATRIX WVP = World * View * Projection;//ğŸ‘‰ ã“ã‚Œã¯ã€Œãƒ¯ãƒ¼ãƒ«ãƒ‰ â†’ NDCã€ã¸ã®å¤‰æ›è¡Œåˆ—ã‚’ä½œã£ã¦ã‚‹ï¼
+		DirectX::XMMATRIX IWVP = DirectX::XMMatrixInverse(nullptr, WVP);//ğŸ‘‰ ä¸Šã§ä½œã£ãŸWVPè¡Œåˆ—ã‚’é€†è¡Œåˆ—ã«ã—ã¦ã€		ã€ŒNDC â†’ ãƒ¯ãƒ¼ãƒ«ãƒ‰ã€ã¸ã®é€†å¤‰æ›è¡Œåˆ—ã‚’ä½œã£ã¦ã‚‹ï¼
+		WorldPosition = DirectX::XMVector3TransformCoord(NDCPosition, IWVP);//ğŸ‘‰ ãã—ã¦ã€ãƒã‚¦ã‚¹ä½ç½®ã‹ã‚‰ä½œã£ãŸ NDCPosition ã‚’ã“ã®é€†è¡Œåˆ—ã§å¤‰æ›ã™ã‚‹ã“ã¨ã§ã€ğŸ“Œã€Œãƒã‚¦ã‚¹ãŒæŒ‡ã—ã¦ã‚‹ãƒ¯ãƒ¼ãƒ«ãƒ‰ç©ºé–“ä¸Šã®ç‚¹ã€ã‚’æ±‚ã‚ã¦ã‚‹ã‚ã‘ï¼
+
+		DirectX::XMFLOAT3 rayStart;
+		DirectX::XMStoreFloat3(&rayStart, WorldPosition);
+
+		//ã‚¹ã‚¯ãƒªãƒ¼ãƒ³åº§æ¨™ã‚’ãƒ¯ãƒ¼ãƒ«ãƒ‰åº§æ¨™ã«å¤‰æ›ã—ã€ãƒ¬ã‚¤ã®çµ‚ç‚¹ã‚’æ±‚ã‚ã‚‹
+		screenPosition.z = 1.0f;
+
+		NDCPosition = DirectX::XMVectorSet(
+			2.0f * (screenPosition.x - viewportX) / viewportW - 1.0f,
+			1.0f - 2.0f * (screenPosition.y - viewportY) / viewportH,
+			(screenPosition.z - viewportMinZ) / (viewportMaxZ - viewportMinZ),
+			1.0f);
+
+		// çµ‚ç‚¹ç”¨ã«NDC â†’ ãƒ¯ãƒ¼ãƒ«ãƒ‰åº§æ¨™å¤‰æ›ï¼ˆFarå´ï¼‰
+		WorldPosition = DirectX::XMVector3TransformCoord(NDCPosition, IWVP);
+
+		DirectX::XMFLOAT3 rayEnd;
+		DirectX::XMStoreFloat3(&rayEnd, WorldPosition);
+
+		//ãƒ¢ãƒ‡ãƒ«ã¨ãƒ¬ã‚¤ã‚­ãƒ£ã‚¹ãƒˆã‚’è¡Œã„ã€é…ç½®åº§æ¨™ã‚’æ±‚ã‚ã‚‹
+		DirectX::XMFLOAT3 hitPosition, hitNormal;
+		if (Collision::RayCast(rayStart, rayEnd,
+			stage->GetTransform(), stage->GetModel(), hitPosition, hitNormal))
+		{
+			SceneManger::Instance().ChangeScene(new SceneGame);
+		}
+	}
+
 	GamePad& gamePad = Input::Instance().GetGamePad();
-	Input& input = Input::Instance();
-	int mouseX = Input::Instance().GetMouse().GetPositionX();
-	int mouseY = Input::Instance().GetMouse().GetPositionY();
-	MouseButton btn = input.GetMouse().GetButtonDown();
 
-	// ƒAƒjƒ[ƒVƒ‡ƒ“’†‚Å‚È‚¯‚ê‚ÎƒNƒŠƒbƒNˆ—‚ğs‚¤
-	if (!isMoving)
-	{
-		if (btn & Mouse::BTN_LEFT)
-		{
-			// ‰E–îˆóƒNƒŠƒbƒN
-			if (mouseX >= 1216 && mouseX <= 1280 && mouseY >= 600 && mouseY <= 664)
-			{
-				isMoving = true;
-				moveDirection = 1; // ‰E•ûŒü
-
-				// Ÿ‚ÌƒXƒe[ƒW‚ğİ’è (Œ»İ‚ÌƒXƒe[ƒW‚Í‰E‚ÉAŸ‚ÌƒXƒe[ƒW‚Í¶‚©‚ç)
-				int nextStageIndex = (nowStageIndex + 1) % stageCount;
-				if (nextStageIndex == 0) {
-					stage2PosX = 384.0f; // Œ»İ•\¦’†
-					stage1PosX = -512.0f; // ¶‘¤‚©‚ç“ü‚Á‚Ä‚­‚é€”õ
-				}
-				else {
-					stage1PosX = 384.0f; // Œ»İ•\¦’†
-					stage2PosX = -512.0f; // ¶‘¤‚©‚ç“ü‚Á‚Ä‚­‚é€”õ
-				}
-			}
-			// ¶–îˆóƒNƒŠƒbƒN
-			else if (mouseX >= 0 && mouseX <= 64 && mouseY >= 600 && mouseY <= 664)
-			{
-				isMoving = true;
-				moveDirection = -1; // ¶•ûŒü
-
-				// Ÿ‚ÌƒXƒe[ƒW‚ğİ’è (Œ»İ‚ÌƒXƒe[ƒW‚Í¶‚ÉAŸ‚ÌƒXƒe[ƒW‚Í‰E‚©‚ç)
-				int nextStageIndex = (nowStageIndex + 1) % stageCount;
-				if (nextStageIndex == 0) {
-					stage2PosX = 384.0f; // Œ»İ•\¦’†
-					stage1PosX = 1280.0f; // ‰E‘¤‚©‚ç“ü‚Á‚Ä‚­‚é€”õ
-				}
-				else {
-					stage1PosX = 384.0f; // Œ»İ•\¦’†
-					stage2PosX = 1280.0f; // ‰E‘¤‚©‚ç“ü‚Á‚Ä‚­‚é€”õ
-				}
-			}
-			// ƒXƒe[ƒW‰æ‘œƒNƒŠƒbƒN
-			else if (mouseX >= 384 && mouseX <= 896 && mouseY >= 10 && mouseY <= 522)
-			{
-				SceneManger::Instance().ChangeScene(new SceneGame);
-			}
-		}
-	}
-
-	// ƒXƒe[ƒWˆÚ“®ƒAƒjƒ[ƒVƒ‡ƒ“ˆ—
-	if (isMoving)
-	{
-		float moveAmount = transitionSpeed * elapsedTime;
-
-		if (moveDirection > 0) // ‰E•ûŒü‚Ö‚ÌˆÚ“®iŒ»İ‚ÌƒXƒe[ƒW‚ª‰E‚Éo‚ÄAŸ‚Ì‚ª¶‚©‚ç“ü‚éj
-		{
-			if (nowStageIndex == 0) // stage1‚ª•\¦’†
-			{
-				// stage1‚ğ‰E‚ÉAstage2‚ğ‰E‚ÉˆÚ“®
-				stage1PosX += moveAmount;
-				stage2PosX += moveAmount;
-
-				// ˆÚ“®I—¹”»’è
-				if (stage2PosX >= 384.0f)
-				{
-					stage2PosX = 384.0f; // ˆÊ’u‚ğŠm’è
-					isMoving = false;
-					nowStageIndex = 1; // stage2‚ÉØ‚è‘Ö‚¦
-				}
-			}
-			else // stage2‚ª•\¦’†
-			{
-				// stage2‚ğ‰E‚ÉAstage1‚ğ‰E‚ÉˆÚ“®
-				stage2PosX += moveAmount;
-				stage1PosX += moveAmount;
-
-				// ˆÚ“®I—¹”»’è
-				if (stage1PosX >= 384.0f)
-				{
-					stage1PosX = 384.0f; // ˆÊ’u‚ğŠm’è
-					isMoving = false;
-					nowStageIndex = 0; // stage1‚ÉØ‚è‘Ö‚¦
-				}
-			}
-		}
-		else if (moveDirection < 0) // ¶•ûŒü‚Ö‚ÌˆÚ“®iŒ»İ‚ÌƒXƒe[ƒW‚ª¶‚Éo‚ÄAŸ‚Ì‚ª‰E‚©‚ç“ü‚éj
-		{
-			if (nowStageIndex == 0) // stage1‚ª•\¦’†
-			{
-				// stage1‚ğ¶‚ÉAstage2‚ğ¶‚ÉˆÚ“®
-				stage1PosX -= moveAmount;
-				stage2PosX -= moveAmount;
-
-				// ˆÚ“®I—¹”»’è
-				if (stage2PosX <= 384.0f)
-				{
-					stage2PosX = 384.0f; // ˆÊ’u‚ğŠm’è
-					isMoving = false;
-					nowStageIndex = 1; // stage2‚ÉØ‚è‘Ö‚¦
-				}
-			}
-			else // stage2‚ª•\¦’†
-			{
-				// stage2‚ğ¶‚ÉAstage1‚ğ¶‚ÉˆÚ“®
-				stage2PosX -= moveAmount;
-				stage1PosX -= moveAmount;
-
-				// ˆÚ“®I—¹”»’è
-				if (stage1PosX <= 384.0f)
-				{
-					stage1PosX = 384.0f; // ˆÊ’u‚ğŠm’è
-					isMoving = false;
-					nowStageIndex = 0; // stage1‚ÉØ‚è‘Ö‚¦
-				}
-			}
-		}
-	}
-
-	// ‚È‚É‚©ƒ{ƒ^ƒ“‚ğ‰Ÿ‚µ‚½‚çƒQ[ƒ€ƒV[ƒ“‚ÖØ‚è‘Ö‚¦iƒfƒoƒbƒO—pj
+	// ãªã«ã‹ãƒœã‚¿ãƒ³ã‚’æŠ¼ã—ãŸã‚‰ã‚²ãƒ¼ãƒ ã‚·ãƒ¼ãƒ³ã¸åˆ‡ã‚Šæ›¿ãˆï¼ˆãƒ‡ãƒãƒƒã‚°ç”¨ï¼‰
 	const GamePadButton anyButton =
 		GamePad::BTN_A
 		| GamePad::BTN_B
@@ -184,9 +164,15 @@ void SceneSelect::Update(float elapsedTime)
 	{
 		SceneManger::Instance().ChangeScene(new SceneGame);
 	}
+
+	float Rotate = RotateSpeed * elapsedTime;
+
+	stage->SetAngle(DirectX::XMFLOAT3(-45.0f, stage->GetAngle().y + Rotate, 0.0f));
+
+	stage->Update(elapsedTime);
 }
 
-//•`‰æˆ—
+//æç”»å‡¦ç†
 void SceneSelect::Render()
 {
 	Graphics& graphics = Graphics::Instance();
@@ -194,15 +180,20 @@ void SceneSelect::Render()
 	ShapeRenderer* shapeRenderer = graphics.GetShapeRenderer();
 	ModelRenderer* modelRenderer = graphics.GetModelRenderer();
 
-	// •`‰æ€”õ
+	// æç”»æº–å‚™
 	RenderContext rc;
 	rc.deviceContext = dc;
-	rc.lightDirection = { 0.0f, -1.0f, 0.0f };	// ƒ‰ƒCƒg•ûŒüi‰º•ûŒüj
+	rc.lightDirection = { 0.0f, -1.0f, 0.0f };	// ãƒ©ã‚¤ãƒˆæ–¹å‘ï¼ˆä¸‹æ–¹å‘ï¼‰
 	rc.renderState = graphics.GetRenderState();
 
-	//2DƒXƒvƒ‰ƒCƒg•`‰æ
+	//ã‚«ãƒ¡ãƒ©ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ãƒ¼è¨­å®š
+	Camera& camera = Camera::Instance();
+	rc.view = camera.GetView();
+	rc.projection = camera.GetProjection();
+
+	//2Dã‚¹ãƒ—ãƒ©ã‚¤ãƒˆæç”»
 	{
-		//”wŒi•`‰æ
+		//èƒŒæ™¯æç”»
 		float screenWidth = static_cast<float>(graphics.GetScreenWidth());
 		float screenHeight = static_cast<float>(graphics.GetScreenHeight());
 		select->Render(rc,
@@ -210,35 +201,28 @@ void SceneSelect::Render()
 			0,
 			1, 1, 1, 1);
 
-		//‰E–îˆó•`‰æ
+		//å³çŸ¢å°æç”»
 		right->Render(rc,
 			1216, 600, 0,
 			64, 64,
 			0,
 			1.0f, 1.0f, 1.0f, 1.0f);
 
-		//¶–îˆó•`‰æ
+		//å·¦çŸ¢å°æç”»
 		right->Render(rc,
 			0, 600, 0,
 			64, 64,
 			180,
 			1.0f, 1.0f, 1.0f, 1.0f);
+	}
 
-		stage1->Render(rc,
-			static_cast<int>(stage1PosX), 10, 0,
-			512, 512,
-			0,
-			1.0f, 1.0f, 1.0f, 1.0f);
-
-		stage2->Render(rc,
-			static_cast<int>(stage2PosX), 10, 0,
-			512, 512,
-			0,
-			1.0f, 1.0f, 1.0f, 1.0f);
+	//3Dãƒ¢ãƒ‡ãƒ«æç”»
+	{
+		stage->Render(rc, modelRenderer);
 	}
 }
 
-//GUI•`‰æ
+//GUIæç”»
 void SceneSelect::DrawGUI()
 {
 }

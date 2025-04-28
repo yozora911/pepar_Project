@@ -5,6 +5,7 @@
 #include "SceneManager.h"
 #include "SceneGame.h"
 #include "Collision.h"
+#include <imgui.h>
 
 //初期化
 void SceneSelect::Initialize()
@@ -14,8 +15,12 @@ void SceneSelect::Initialize()
 	right = new Sprite(("Data/Sprite/rigth.jpg"));
 
 	//ステージ初期化
-	stage = new Stage_model();
-	stage->SetPosition(DirectX::XMFLOAT3(0.0f, 0.0f, -0.0f));
+	for (int i = 0; i < 10; ++i)
+	{
+		Stage_model* stage = new Stage_model();
+		stage->SetPosition(DirectX::XMFLOAT3(i * 3.0f, 0.0f, 0.0f));
+		stages.push_back(stage);
+	}
 
 	//カメラ初期設定
 	Graphics& graphics = Graphics::Instance();
@@ -59,22 +64,40 @@ void SceneSelect::Finalize()
 	}
 
 	//ステージ終了化
-	if (stage != nullptr)
+	for(Stage_model* stage : stages)
 	{
 		delete stage;
-		stage = nullptr;
 	}
+	stages.clear();
 }
 
 //更新処理
 void SceneSelect::Update(float elapsedTime)
 {
 	// カメラコントローラー更新処理
-	DirectX::XMFLOAT3 target = stage->GetPosition();
+	Camera& camera = Camera::Instance();
+	DirectX::XMFLOAT3 target = stages[SelectIndex]->GetPosition();
 	target.y += 0.5f;
 	cameraController->SetTarget(target);
 	cameraController->Update(elapsedTime);
 
+
+	//選ばれてるステージ
+	Stage_model* stage = stages[SelectIndex];
+
+	if (GetAsyncKeyState(VK_RIGHT) & 0x01)
+	{
+		SelectIndex++;
+		if (SelectIndex >= stages.size()) SelectIndex = 0; // 最初に戻す
+	}
+
+	if (GetAsyncKeyState(VK_LEFT) & 0x01)
+	{
+		if (SelectIndex == 0) SelectIndex = stages.size() - 1;
+		else
+			SelectIndex--;
+
+	}
 
 	// マウス左クリックした
 	if (GetAsyncKeyState(VK_LBUTTON) & 0x8000)
@@ -166,9 +189,7 @@ void SceneSelect::Update(float elapsedTime)
 	}
 
 	float Rotate = RotateSpeed * elapsedTime;
-
 	stage->SetAngle(DirectX::XMFLOAT3(-45.0f, stage->GetAngle().y + Rotate, 0.0f));
-
 	stage->Update(elapsedTime);
 }
 
@@ -218,11 +239,12 @@ void SceneSelect::Render()
 
 	//3Dモデル描画
 	{
-		stage->Render(rc, modelRenderer);
+		stages[SelectIndex]->Render(rc, modelRenderer);
 	}
 }
 
 //GUI描画
 void SceneSelect::DrawGUI()
 {
+
 }

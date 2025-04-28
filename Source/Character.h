@@ -8,7 +8,7 @@ public:
 	virtual ~Character(){}
 
 
-	void UpdateTransform();
+	 void UpdateTransform();
 
 	//ˆÊ’uŽæ“¾
 	const DirectX::XMFLOAT3& GetPosition()const { return position; }

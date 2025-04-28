@@ -16,7 +16,7 @@ public:
 	//•`‰æˆ—
 	void Render(const RenderContext& rc, ModelRenderer* renderer);
 
-	Model* GetModel() { return model; }
+	Model* GetModel() { return model; };
 
 private:
 	Model* model = nullptr;

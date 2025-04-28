@@ -4,6 +4,7 @@
 #include "stage_model.h"
 #include "Scene.h"
 #include <Windows.h>
+#include <vector>
 
 //セレクトシーン
 class SceneSelect : public Scene
@@ -34,4 +35,7 @@ private:
 	CameraController* cameraController = nullptr;
 
 	float RotateSpeed = 1.0f;
+	std::vector<Stage_model*> stages;
+
+	int SelectIndex = 0;
 };
